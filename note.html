@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: sticky-media: blob:; media-src 'self' data: sticky-media: blob:; connect-src 'self';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WunWun Note</title>
+  <link rel="stylesheet" href="note.css" />
+</head>
+<body>
+  <div class="note-app">
+    <header class="note-bar" id="note-bar">
+      <button id="btn-new" class="bar-btn" title="โน้ตใหม่">+</button>
+      <span class="note-brand">WunWun</span>
+      <span id="dock-title" class="dock-title"></span>
+      <div class="bar-spacer"></div>
+      <div class="note-view-tabs" id="note-view-tabs">
+        <button class="view-tab active" data-view="all" title="ทั้งหมด">All</button>
+        <button class="view-tab" data-view="focus" title="Focus">⭐</button>
+      </div>
+      <button id="btn-pin" class="bar-btn" title="ปักหมุดบนเดสก์ท็อป" aria-label="Pin">📌</button>
+      <button id="btn-collapse" class="bar-btn" title="ย่อ / กาง" aria-label="Collapse">−</button>
+      <div class="menu-wrap">
+        <button id="btn-menu" class="bar-btn" title="ตัวเลือก">⋯</button>
+        <div id="note-menu" class="note-menu hidden">
+          <div class="menu-colors">
+            <button data-color="#f1c40f" style="background:#f1c40f"></button>
+            <button data-color="#e74c3c" style="background:#e74c3c"></button>
+            <button data-color="#3498db" style="background:#3498db"></button>
+            <button data-color="#2ecc71" style="background:#2ecc71"></button>
+            <button data-color="#9b59b6" style="background:#9b59b6"></button>
+            <button data-color="#e67e22" style="background:#e67e22"></button>
+          </div>
+          <button class="menu-item" data-export="txt">Export .txt</button>
+          <button class="menu-item" data-export="html">Export .html</button>
+          <button class="menu-item" data-export="png">Export .png</button>
+          <button class="menu-item" data-export="jpeg">Export .jpeg</button>
+          <button id="btn-delete" class="menu-item danger">Delete note</button>
+        </div>
+      </div>
+      <button id="btn-close" class="bar-btn" title="ปิด">×</button>
+    </header>
+
+    <div class="note-body">
+      <div id="editor" class="editor" contenteditable="true" spellcheck="true" data-placeholder="พิมพ์ที่นี่..."></div>
+      <div id="completed-wrap" class="completed-wrap hidden">
+        <button type="button" id="completed-toggle" class="completed-toggle">
+          Completed (<span id="completed-count">0</span>) <span id="completed-caret">▾</span>
+        </button>
+        <div id="completed-list" class="completed-list hidden"></div>
+      </div>
+    </div>
+
+    <aside id="ai-panel" class="ai-panel hidden">
+      <div class="ai-head">
+        <strong>AI ผู้ช่วย</strong>
+        <button id="btn-ai-close" class="mini">×</button>
+      </div>
+      <div class="ai-actions">
+        <button data-ai="summarize">สรุป</button>
+        <button data-ai="checklist">เป็น Checklist</button>
+        <button data-ai="actions">Action items</button>
+        <button data-ai="rewrite">จัดข้อความ</button>
+      </div>
+      <pre id="ai-output" class="ai-output">เลือกคำสั่งด้านบน</pre>
+      <button id="btn-ai-apply" class="ai-apply hidden">แทรกผลลัพธ์ลงโน้ต</button>
+    </aside>
+
+    <footer class="toolbar" id="toolbar">
+      <div class="toolbar-row">
+        <button class="tool" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button class="tool" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button class="tool" data-cmd="underline" title="Underline"><u>U</u></button>
+        <button class="tool" data-cmd="strikeThrough" title="Strikethrough"><s>ab</s></button>
+        <span class="tool-sep"></span>
+        <button class="tool" data-cmd="insertUnorderedList" title="Bullet list">≡</button>
+        <button class="tool" id="btn-checklist" title="โหมด Checklist">☑</button>
+        <button class="tool" id="btn-priority" title="ตั้ง priority">●</button>
+      </div>
+      <div class="toolbar-row">
+        <button class="tool" id="btn-media" title="ใส่รูป / GIF / วิดีโอ">🖼</button>
+        <button class="tool" id="btn-snap" title="Snap / แคปจอ">✂</button>
+        <button class="tool" id="btn-folder" title="ลิงก์โฟลเดอร์">📁</button>
+        <span class="tool-sep"></span>
+        <button class="tool" id="btn-ai" title="AI ผู้ช่วย">✦</button>
+      </div>
+    </footer>
+  </div>
+  <script src="note.js"></script>
+</body>
+</html>

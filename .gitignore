@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.exe
+!releases/.gitkeep
+releases/*.exe
+releases/*.blockmap
+releases/*.yml
+.vscode/
+.idea/

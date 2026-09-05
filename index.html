@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WunWun — Hub</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app hub">
+    <header class="titlebar">
+      <div class="titlebar-left">
+        <span class="app-title">WunWun</span>
+        <span class="hub-badge">Hub</span>
+      </div>
+      <div class="titlebar-actions">
+        <button id="btn-pin" class="icon-btn active" title="Pin Hub" aria-label="Pin">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
+          </svg>
+        </button>
+        <div class="color-picker-wrap">
+          <button id="btn-color" class="icon-btn" title="สีโน้ต (ใบที่เลือก / โน้ตใหม่)" aria-label="Color">
+            <span class="color-dot" id="color-dot"></span>
+          </button>
+          <div id="color-menu" class="color-menu hidden">
+            <button data-color="#f1c40f" style="background:#f1c40f" title="Yellow"></button>
+            <button data-color="#e74c3c" style="background:#e74c3c" title="Red"></button>
+            <button data-color="#3498db" style="background:#3498db" title="Blue"></button>
+            <button data-color="#2ecc71" style="background:#2ecc71" title="Green"></button>
+            <button data-color="#9b59b6" style="background:#9b59b6" title="Purple"></button>
+            <button data-color="#e67e22" style="background:#e67e22" title="Orange"></button>
+          </div>
+        </div>
+        <button id="btn-account" class="icon-btn" title="Login / Account" aria-label="Account">👤</button>
+        <button id="btn-close" class="icon-btn danger" title="Close Hub" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M18.3 5.71 12 12.01l-6.3-6.3-1.4 1.42 6.29 6.3-6.3 6.29 1.42 1.42 6.29-6.3 6.3 6.3 1.41-1.42-6.3-6.29 6.3-6.3z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <p class="tagline">What are you doing today?</p>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="all" role="tab">All</button>
+      <button class="tab" data-tab="tasks" role="tab">Tasks</button>
+      <button class="tab" data-tab="projects" role="tab">Projects</button>
+      <button class="tab" data-tab="focus" role="tab">⭐ Focus</button>
+      <span class="tab-indicator" id="tab-indicator"></span>
+    </nav>
+
+    <div class="search-bar">
+      <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+      </svg>
+      <input id="search-input" type="search" placeholder="ค้นหาโน้ต..." autocomplete="off" />
+    </div>
+
+    <div class="hub-actions">
+      <button id="btn-new-note" class="primary-btn">+ Note</button>
+      <p id="color-hint" class="color-hint">สี = โน้ตที่เลือก หรือสีเริ่มต้นของโน้ตใหม่</p>
+      <p id="sync-hint" class="color-hint">Local-first · Guest</p>
+    </div>
+
+    <main id="notes-list" class="notes-list" aria-live="polite"></main>
+
+    <div id="auth-modal" class="auth-modal hidden">
+      <div class="auth-card">
+        <h3>WunWun Account</h3>
+        <p class="auth-sub">ใช้ได้เต็มรูปแบบแบบ Offline — Login เพื่อ sync ข้ามเครื่อง</p>
+        <input id="auth-email" type="email" placeholder="email@example.com" />
+        <div class="auth-actions">
+          <button id="auth-login" class="primary-btn">Login</button>
+          <button id="auth-register" class="settings-btn">Register</button>
+          <button id="auth-guest" class="settings-btn">Continue as Guest</button>
+          <button id="auth-logout" class="settings-btn danger-text">Logout</button>
+          <button id="auth-close" class="settings-btn">Close</button>
+        </div>
+        <p id="auth-status" class="color-hint"></p>
+      </div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
