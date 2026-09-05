@@ -1,6 +1,6 @@
 # WunWun - Sticky Note To-Do
 
-**วันวันทำอะไร? จดไว้ตรงหน้า ไม่มีลืม**
+**วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม**
 
 A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync.
 

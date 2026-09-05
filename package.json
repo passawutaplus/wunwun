@@ -1,7 +1,7 @@
 {
   "name": "wunwun",
   "version": "1.0.0",
-  "description": "WunWun - Sticky Note To-Do. วันวันทำอะไร? จดไว้ตรงหน้า ไม่มีลืม — lightweight floating desktop sticky with smart task tracking and local-first cloud sync.",
+  "description": "WunWun - Sticky Note To-Do. วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม — lightweight floating desktop sticky with smart task tracking and local-first cloud sync.",
   "main": "main.js",
   "author": "You",
   "license": "MIT",
