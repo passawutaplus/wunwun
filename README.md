@@ -1,9 +1,12 @@
-# WunWun
+# WunWun - Sticky Note To-Do
 
-Desktop sticky notes + micro-task manager  
-**What are you doing today?**
+**วันวันทำอะไร? จดไว้ตรงหน้า ไม่มีลืม**
+
+A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync.
 
 Frameless Electron app · always-on-top · local-first · optional Supabase sync
+
+**Download:** https://wunwun-download.vercel.app/
 
 ## Run (dev)
 

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WunWun — What are you doing today?</title>
-  <meta name="description" content="WunWun desktop sticky notes & micro-tasks. Local-first. Always on top." />
+  <title>WunWun - Sticky Note To-Do</title>
+  <meta name="description" content="วันวันทำอะไร? จดไว้ตรงหน้า ไม่มีลืม — A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync." />
   <style>
     :root {
       --bg: #121212;
@@ -58,6 +58,13 @@
       color: transparent;
     }
     p { color: var(--muted); line-height: 1.55; margin-bottom: 22px; }
+    .slogan {
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; }
     a.btn {
       display: inline-flex;
@@ -77,9 +84,10 @@
 </head>
 <body>
   <main class="card">
-    <div class="badge">DESKTOP APP</div>
+    <div class="badge">STICKY NOTE TO-DO</div>
     <h1><span>WunWun</span></h1>
-    <p>What are you doing today? — Sticky notes + micro-tasks ที่ลอยบนเดสก์ท็อป Local-first ใช้ได้ offline</p>
+    <p class="slogan">วันวันทำอะไร? จดไว้ตรงหน้า ไม่มีลืม</p>
+    <p>A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync.</p>
     <div class="actions">
       <a class="btn primary"
          href="https://github.com/passawutaplus/wunwun/releases/download/v1.0.0/WunWun.Setup.1.0.0.exe"
