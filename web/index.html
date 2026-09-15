@@ -3,98 +3,499 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WunWun - Sticky Note To-Do</title>
-  <meta name="description" content="วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม — A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync." />
+  <title>WunWun — วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม</title>
+  <meta name="description" content="สติกกี้โน้ต + To-do ลอยบนเดสก์ท็อป Windows จดงาน ติดตามทาสก์ ซิงก์ได้ถ้าต้องการ — ฟรี ไม่ต้องบัตรเครดิต" />
+  <meta property="og:title" content="WunWun — จดไว้ตรงนี้ ไม่มีลืม" />
+  <meta property="og:description" content="สติกกี้โน้ต + To-do ลอยบนเดสก์ท็อป Windows ฟรี ไม่ต้องบัตรเครดิต" />
+  <meta property="og:image" content="wunwun-sky.png" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #121212;
-      --text: #f5f5f5;
-      --muted: #9a9a9a;
-      --accent: #f1c40f;
-      --card: #1e1e1e;
-      --grad: linear-gradient(135deg, #ff8a4c, #ff6b2c, #e85d04);
+      --bg: #0b0d10;
+      --surface: #14171c;
+      --text: #f4f5f7;
+      --muted: #a8adb6;
+      --line: rgba(255,255,255,.1);
+      --yellow: #f1c40f;
+      --lime: #e4ef5a;
+      --ink: #14150c;
+      --hero-radius: 28px;
     }
+    html { scroll-behavior: smooth; scroll-padding-top: 5.5rem; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      min-height: 100vh;
-      font-family: "Segoe UI", system-ui, sans-serif;
+      font-family: Prompt, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
       color: var(--text);
+      line-height: 1.5;
+      overflow-x: hidden;
+      word-break: keep-all;
+    }
+    a { color: inherit; }
+    img { max-width: 100%; display: block; }
+    .wrap { width: min(1120px, calc(100% - 32px)); margin-inline: auto; }
+
+    header.nav {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11,13,16,.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid transparent;
+    }
+    header.nav.scrolled { border-bottom-color: var(--line); }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 64px; gap: 16px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px; text-decoration: none;
+    }
+    .brand img { width: 36px; height: 36px; border-radius: 9px; background: #111; }
+    .brand strong { font-size: 17px; letter-spacing: -.03em; }
+    .brand small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; margin-top: -2px; }
+    .nav-actions { display: flex; align-items: center; gap: 8px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      text-decoration: none; border: 0; cursor: pointer;
+      border-radius: 999px; font-weight: 700; font-size: 14px;
+      padding: 11px 18px; transition: transform .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+    .btn-lime { background: var(--lime); color: var(--ink); }
+    .btn-ghost {
+      background: transparent; color: var(--text);
+      border: 1px solid rgba(255,255,255,.28);
+    }
+    .btn-ghost.light {
+      background: rgba(255,255,255,.14);
+      border-color: rgba(255,255,255,.42);
+      color: #fff;
+      backdrop-filter: blur(8px);
+    }
+    .btn-sm { padding: 8px 14px; font-size: 13px; }
+
+    .hero {
+      position: relative;
+      margin: 12px auto 0;
+      width: min(1180px, calc(100% - 24px));
+      min-height: min(92vh, 860px);
+      border-radius: var(--hero-radius);
+      overflow: hidden;
+      isolation: isolate;
+      display: flex; flex-direction: column;
+    }
+    .hero-bg {
+      position: absolute; inset: 0; z-index: -2;
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .hero-shade {
+      position: absolute; inset: 0; z-index: -1;
       background:
-        radial-gradient(ellipse 70% 50% at 80% 0%, rgba(241,196,15,0.15), transparent 55%),
-        var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 20px;
+        linear-gradient(180deg, rgba(6,28,62,.18) 0%, rgba(8,40,88,.32) 42%, rgba(10,30,70,.42) 100%);
     }
-    .card {
-      max-width: 520px;
-      width: 100%;
-      background: var(--card);
-      border: 1px solid #2a2a2a;
-      border-radius: 20px;
-      padding: 36px 28px;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    .hero-copy {
+      text-align: center;
+      padding: 64px 24px 12px;
+      color: #fff;
     }
-    .badge {
-      display: inline-block;
-      background: var(--accent);
-      color: #111;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 999px;
+    .eyebrow {
+      font-size: 13px; font-weight: 600; letter-spacing: .04em;
+      text-shadow: 0 1px 10px rgba(0,0,0,.35);
       margin-bottom: 14px;
     }
     h1 {
-      font-size: 34px;
-      letter-spacing: -0.03em;
-      margin-bottom: 8px;
+      font-size: clamp(28px, 5vw, 52px);
+      font-weight: 800; letter-spacing: -.04em; line-height: 1.18;
+      text-shadow: 0 8px 28px rgba(0,20,50,.45);
+      max-width: 18ch; margin: 0 auto 16px;
     }
-    h1 span {
-      background: var(--grad);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    .lede {
+      max-width: 36rem; margin: 0 auto 26px;
+      font-size: clamp(15px, 1.6vw, 18px); font-weight: 500;
+      text-shadow: 0 2px 12px rgba(0,0,0,.4);
     }
-    p { color: var(--muted); line-height: 1.55; margin-bottom: 22px; }
-    .slogan {
-      color: var(--text);
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.45;
-      margin-bottom: 10px;
+    .hero-ctas { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+
+    .stage {
+      position: relative;
+      flex: 1;
+      min-height: 340px;
+      margin-top: 8px;
     }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-    a.btn {
-      display: inline-flex;
-      align-items: center;
+    .float-card {
+      position: absolute;
+      background: #fff; color: #1a1d22;
+      border-radius: 16px;
+      box-shadow: 0 18px 50px rgba(8,20,50,.28);
+      animation: bob 6s ease-in-out infinite;
+    }
+    .float-card.sticky {
+      width: 168px; min-height: 168px;
+      background: #ffe56a;
+      border-radius: 4px 14px 14px 14px;
+      padding: 16px 14px;
+      box-shadow: 0 14px 32px rgba(8,20,50,.22);
+    }
+    .float-card.sticky::before {
+      content: ""; position: absolute; top: 0; right: 0;
+      width: 22px; height: 22px;
+      background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.08) 50%);
+      border-radius: 0 12px 0 8px;
+    }
+    .sticky h3 { font-size: 13px; margin-bottom: 8px; }
+    .sticky p { font-size: 12px; color: #5a4a10; }
+    .hub {
+      width: min(340px, 78%);
+      left: 50%; top: 18px;
+      transform: translateX(-50%);
+      background: #1b1e24; color: #f4f5f7;
+      padding: 12px; border-radius: 18px;
+      animation-delay: -.8s;
+    }
+    .hub-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff5f57; }
+    .dot:nth-child(2) { background: #febc2e; }
+    .dot:nth-child(3) { background: #28c840; }
+    .hub-bar span { margin-left: 6px; font-size: 11px; color: #c9ccd3; font-weight: 600; }
+    .hub-hi { font-size: 18px; font-weight: 700; margin: 4px 4px 10px; }
+    .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mini-note {
+      background: #fff8c4; color: #2a2410; border-radius: 10px; padding: 10px;
+      min-height: 88px; font-size: 11px;
+    }
+    .mini-note.pink { background: #ffd6e2; }
+    .mini-note strong { display: block; margin-bottom: 4px; font-size: 12px; }
+    .c1 { left: 6%; top: 48px; transform: rotate(-11deg); animation-delay: -1.4s; }
+    .c2 { right: 7%; top: 36px; transform: rotate(9deg); animation-delay: -2.2s; background: #fff1a8; }
+    .pills {
+      right: 11%; bottom: 28px; width: 190px;
+      background: transparent; box-shadow: none;
+      display: flex; flex-direction: column; gap: 8px;
+      animation-delay: -3s;
+    }
+    .pill {
+      background: #fff; border-radius: 999px; padding: 9px 12px;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 10px 24px rgba(8,20,50,.2);
+      font-size: 12px; font-weight: 600; color: #1a1d22;
+    }
+    .flag { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+    .hero-proof {
+      text-align: center; color: #fff; padding: 8px 16px 28px;
+      font-size: 13px; font-weight: 600;
+      text-shadow: 0 2px 10px rgba(0,0,0,.35);
+    }
+    .hero-proof span { opacity: .92; }
+
+    .marquee-wrap {
+      overflow: hidden; border-block: 1px solid var(--line);
+      margin-top: 18px;
+    }
+    .marquee {
+      display: flex; gap: 36px; width: max-content;
+      padding: 14px 0; color: var(--muted); font-size: 13px; font-weight: 600;
+      animation: marquee 28s linear infinite;
+    }
+    .marquee i { color: var(--yellow); font-style: normal; margin-right: 10px; }
+
+    section { padding: 72px 0; }
+    .sec-kicker { color: var(--yellow); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+    h2 { font-size: clamp(24px, 3.4vw, 36px); letter-spacing: -.03em; line-height: 1.25; margin-bottom: 12px; }
+    .muted { color: var(--muted); }
+
+    .bento {
+      display: grid; gap: 14px;
+      grid-template-columns: repeat(12, 1fr);
+      margin-top: 28px;
+    }
+    .tile {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px; padding: 22px;
+    }
+    .tile.wide { grid-column: span 7; }
+    .tile.narrow { grid-column: span 5; }
+    .tile.third { grid-column: span 4; }
+    .tile h3 { font-size: 18px; margin-bottom: 8px; }
+    .tile p { color: var(--muted); font-size: 14px; }
+    .desk-shot {
+      margin-top: 16px; border-radius: 14px; overflow: hidden; height: 220px;
+    }
+    .desk-shot img { width: 100%; height: 100%; object-fit: cover; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; }
+    .step {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 20px; padding: 22px;
+    }
+    .num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--lime); color: var(--ink);
+      display: grid; place-items: center; font-weight: 800; font-size: 14px; margin-bottom: 12px;
+    }
+    .step h3 { font-size: 17px; margin-bottom: 6px; }
+    .step p { color: var(--muted); font-size: 14px; }
+
+    .final {
+      width: min(1180px, calc(100% - 24px));
+      margin: 0 auto 40px;
+      border-radius: var(--hero-radius);
+      overflow: hidden; position: relative; isolation: isolate;
+      padding: 72px 24px; text-align: center; color: #fff;
+    }
+    .final img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+    .final::after {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background: linear-gradient(180deg, rgba(8,30,70,.5), rgba(8,20,50,.62));
+    }
+    .final h2 { margin-bottom: 10px; }
+    .final p { margin-bottom: 22px; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 22px 0 28px; color: var(--muted); font-size: 13px;
+    }
+    .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    footer a { color: #ddd; }
+
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+
+    .sticky-cta {
+      display: none;
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 30;
       justify-content: center;
-      text-decoration: none;
-      border-radius: 12px;
-      padding: 12px 16px;
-      font-weight: 700;
-      font-size: 14px;
     }
-    a.primary { background: var(--accent); color: #111; }
-    a.ghost { border: 1px solid #333; color: var(--text); }
-    .note { margin-top: 18px; font-size: 12px; color: var(--muted); }
-    code { color: #ddd; }
+    .sticky-cta .btn { width: 100%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+
+    @keyframes bob {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 0 -10px; }
+    }
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+    @media (max-width: 860px) {
+      .tile.wide, .tile.narrow, .tile.third { grid-column: span 12; }
+      .steps { grid-template-columns: 1fr; }
+      .pills { display: none; }
+      .c1 { left: 2%; top: 20px; width: 132px; min-height: 132px; }
+      .c2 { right: 2%; width: 132px; min-height: 132px; }
+      .hub { top: 72px; }
+      .hero { min-height: 0; }
+      .stage { min-height: 420px; }
+      .sticky-cta { display: flex; }
+      .sticky-cta.is-hidden { display: none; }
+      .nav-actions .btn-ghost { display: none; }
+      footer { padding-bottom: 84px; }
+      .brand small { display: none; }
+    }
+    @media (max-width: 520px) {
+      h1 { max-width: none; font-size: 26px; }
+      .lede { font-size: 14px; }
+      .hero-copy { padding-top: 40px; }
+      .c1, .c2 { display: none; }
+      .hub { width: 86%; }
+      .stage { min-height: 280px; padding-bottom: 88px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .float-card, .marquee, .reveal { animation: none; transition: none; }
+      .reveal { opacity: 1; transform: none; }
+    }
   </style>
 </head>
 <body>
-  <main class="card">
-    <div class="badge">STICKY NOTE TO-DO</div>
-    <h1><span>WunWun</span></h1>
-    <p class="slogan">วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม</p>
-    <p>A lightweight, floating desktop sticky note with smart task tracking and local-first cloud sync.</p>
-    <div class="actions">
-      <a class="btn primary"
-         href="https://github.com/passawutaplus/wunwun/releases/download/v1.0.0/WunWun.Setup.1.0.0.exe"
-         download="WunWun-Setup-1.0.0.exe">ดาวน์โหลด .exe</a>
-      <a class="btn ghost" href="https://github.com/passawutaplus/wunwun">GitHub</a>
+  <header class="nav" id="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top">
+        <img src="wunwun-logo.png" width="36" height="36" alt="" />
+        <span>
+          <strong>WunWun</strong>
+          <small>สติกกี้โน้ตสำหรับ Windows</small>
+        </span>
+      </a>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="https://github.com/passawutaplus/wunwun">GitHub</a>
+        <a class="btn btn-lime btn-sm" href="#download">ดาวน์โหลด</a>
+      </div>
     </div>
-    <p class="note">กดปุ่มแล้วไฟล์ติดตั้งจะโหลดลงเครื่องทันที · หรือใช้ <a href="https://github.com/passawutaplus/wunwun/releases/download/v1.0.0/WunWun.1.0.0.exe" download="WunWun-1.0.0-portable.exe" style="color:#ddd">portable</a> (ไม่ต้องติดตั้ง)</p>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-label="แนะนำ WunWun">
+      <img class="hero-bg" src="wunwun-sky.png" alt="" />
+      <div class="hero-shade"></div>
+      <div class="hero-copy">
+        <p class="eyebrow">สติกกี้โน้ต + To-do บนเดสก์ท็อป</p>
+        <h1>จดโน้ต → ตามงาน → ไม่มีลืม<br />ในแอปเดียว</h1>
+        <p class="lede">วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม<br />ลอยบนหน้าจอ Windows · ตามงานด้วยธง<br />ซิงก์ได้ถ้าต้องการ · ฟรี ไม่ต้องบัตรเครดิต</p>
+        <div class="hero-ctas">
+          <a class="btn btn-ghost light" href="#how">ดูวิธีใช้</a>
+          <a class="btn btn-lime" href="#download">ดาวน์โหลด Windows →</a>
+        </div>
+      </div>
+      <div class="stage" aria-hidden="true">
+        <article class="float-card sticky c1">
+          <h3>ซื้อของเย็น</h3>
+          <p>นม · ไข่ · ข้าวโพด<br />อย่าลืมของแม่</p>
+        </article>
+        <article class="float-card hub">
+          <div class="hub-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>WunWun</span></div>
+          <p class="hub-hi">สวัสดี</p>
+          <div class="hub-grid">
+            <div class="mini-note"><strong>บรีฟลูกค้า</strong>ส่งเดโมวันศุกร์</div>
+            <div class="mini-note pink"><strong>ไอเดีย</strong>หน้าแรกให้โล่งกว่านี้</div>
+          </div>
+        </article>
+        <article class="float-card sticky c2">
+          <h3>วันนี้</h3>
+          <p>ตัดคลิป 2 นาที<br />โทรกลับคุณแอน</p>
+        </article>
+        <div class="float-card pills">
+          <div class="pill"><span class="flag" style="background:#e74c3c"></span>ส่งไฟล์ด่วน</div>
+          <div class="pill"><span class="flag" style="background:#f1c40f"></span>จดบรีฟใหม่</div>
+          <div class="pill"><span class="flag" style="background:#2ecc71"></span>พัก 10 นาที</div>
+        </div>
+      </div>
+      <p class="hero-proof">Windows 10/11 · ฟรี · ไม่ต้องบัตรเครดิต · ภาษาไทย · Local-first</p>
+    </section>
+
+    <div class="marquee-wrap" aria-hidden="true">
+      <div class="marquee">
+        <span><i>●</i>Sticky Note</span>
+        <span><i>●</i>To-do ตามธง</span>
+        <span><i>●</i>Always on top</span>
+        <span><i>●</i>Local-first</span>
+        <span><i>●</i>ซิงก์ได้ถ้าล็อกอิน</span>
+        <span><i>●</i>ภาษาไทย</span>
+        <span><i>●</i>ไม่ต้องบัตรเครดิต</span>
+        <span><i>●</i>Sticky Note</span>
+        <span><i>●</i>To-do ตามธง</span>
+        <span><i>●</i>Always on top</span>
+        <span><i>●</i>Local-first</span>
+        <span><i>●</i>ซิงก์ได้ถ้าล็อกอิน</span>
+        <span><i>●</i>ภาษาไทย</span>
+        <span><i>●</i>ไม่ต้องบัตรเครดิต</span>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <p class="sec-kicker reveal">ทำไมต้อง WunWun</p>
+        <h2 class="reveal">เครื่องมือเล็ก ๆ ที่อยู่บนจอตลอด<br />ไม่ใช่แท็บที่ลืมเปิด</h2>
+        <p class="muted reveal">จดแล้วเห็นทุกวัน งานไม่หายไปในโน้ตอีกกอง</p>
+        <div class="bento">
+          <article class="tile wide reveal">
+            <h3>สติกกี้ลอยบนเดสก์ท็อป</h3>
+            <p>ปักหมุดทับโปรแกรมอื่นได้ เหมาะกับคนที่ต้องเห็นบรีฟขณะทำงาน ไม่ต้องสลับหน้าต่างไปหาโน้ต</p>
+            <div class="desk-shot">
+              <img src="wunwun-desk.png" alt="โต๊ะทำงานริมหน้าต่าง มีโน้ตสีเหลืองวางข้างแล็ปท็อป" />
+            </div>
+          </article>
+          <article class="tile narrow reveal">
+            <h3>To-do ตามความด่วน</h3>
+            <p>แยกโน้ตกับงานชัด ติดธงด่วน–ไม่ด่วน กรองดูวันนี้หรืองานที่เสร็จแล้วได้ในคลิกเดียว</p>
+          </article>
+          <article class="tile third reveal">
+            <h3>อยู่เครื่องคุณก่อน</h3>
+            <p>Guest ใช้ได้เลยไม่ต้องสมัคร ข้อมูลอยู่ในเครื่อง อยากซิงก์ค่อยล็อกอิน</p>
+          </article>
+          <article class="tile third reveal">
+            <h3>ภาษาไทยทั้งแอป</h3>
+            <p>ฟอนต์ไทย อ่านง่าย เขียนบรีฟและทาสก์ได้ทันทีโดยไม่ต้องแปลเมนู</p>
+          </article>
+          <article class="tile third reveal">
+            <h3>ฟรี ไม่ต้องบัตร</h3>
+            <p>โหลดตัวติดตั้ง Windows แล้วใช้ได้เลย ไม่มีเพย์วอลล์ตอนเริ่ม</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <p class="sec-kicker reveal">เริ่มใน 2 นาที</p>
+        <h2 class="reveal">โหลดแล้วจดได้เลย</h2>
+        <div class="steps">
+          <article class="step reveal">
+            <div class="num">1</div>
+            <h3>ดาวน์โหลดตัวติดตั้ง</h3>
+            <p>กดโหลดไฟล์ .exe จากปุ่มด้านล่าง ติดตั้งบน Windows 10 หรือ 11</p>
+          </article>
+          <article class="step reveal">
+            <div class="num">2</div>
+            <h3>เปิด Hub แล้วจดโน้ต</h3>
+            <p>สร้างสติกกี้ใบแรก หรือใส่ทาสก์วันนี้ ปักหมุดให้ลอยบนจอ</p>
+          </article>
+          <article class="step reveal">
+            <div class="num">3</div>
+            <h3>ซิงก์เมื่อพร้อม</h3>
+            <p>ใช้แบบ Guest บนเครื่องนี้ได้เลย ถ้าอยากย้ายเครื่อง ค่อยล็อกอินทีหลัง</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="final" id="download">
+      <img src="wunwun-sky.png" alt="" />
+      <h2>พร้อมจดของวันนี้หรือยัง</h2>
+      <p>Windows · ฟรี · ไม่ต้องบัตรเครดิต · เวอร์ชัน Beta</p>
+      <div class="hero-ctas">
+        <a class="btn btn-lime"
+           href="https://github.com/passawutaplus/wunwun/releases/download/v1.0.0/WunWun.Setup.1.0.0.exe"
+           download="WunWun-Setup-1.0.0.exe">ดาวน์โหลด .exe</a>
+        <a class="btn btn-ghost light" href="https://github.com/passawutaplus/wunwun">ดูซอร์สบน GitHub</a>
+      </div>
+      <p style="margin-top:18px;font-size:13px;opacity:.9">
+        กดแล้วไฟล์ติดตั้งจะโหลดลงเครื่อง · หรือใช้
+        <a href="https://github.com/passawutaplus/wunwun/releases/download/v1.0.0/WunWun.1.0.0.exe" download="WunWun-1.0.0-portable.exe">portable</a>
+        ไม่ต้องติดตั้ง
+      </p>
+    </section>
   </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span>WunWun Beta · Sticky Note To-Do</span>
+      <span>
+        <a href="https://github.com/passawutaplus/wunwun">GitHub</a>
+        · <a href="https://github.com/passawutaplus/wunwun/releases">Releases</a>
+      </span>
+    </div>
+  </footer>
+
+  <div class="sticky-cta is-hidden">
+    <a class="btn btn-lime" href="#download">ดาวน์โหลด Windows</a>
+  </div>
+
+  <script>
+    const nav = document.getElementById("nav");
+    const stickyCta = document.querySelector(".sticky-cta");
+    const download = document.getElementById("download");
+    const heroCtas = document.querySelector(".hero-copy .hero-ctas");
+    const onScroll = () => {
+      nav.classList.toggle("scrolled", window.scrollY > 8);
+      if (!stickyCta || !download) return;
+      const downloadVisible = (() => {
+        const r = download.getBoundingClientRect();
+        return r.top < innerHeight - 80 && r.bottom > 80;
+      })();
+      const heroCtaVisible = heroCtas && heroCtas.getBoundingClientRect().bottom > 72;
+      stickyCta.classList.toggle("is-hidden", downloadVisible || heroCtaVisible);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); });
+    }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  </script>
 </body>
 </html>
