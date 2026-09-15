@@ -1,0 +1,10 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/web/index.html" },
+    { "source": "/favicon.png", "destination": "/web/favicon.png" },
+    { "source": "/wunwun-logo.png", "destination": "/web/wunwun-logo.png" },
+    { "source": "/wunwun-sky.png", "destination": "/web/wunwun-sky.png" },
+    { "source": "/wunwun-desk.png", "destination": "/web/wunwun-desk.png" }
+  ]
+}
