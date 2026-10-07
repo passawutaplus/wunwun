@@ -1,6 +1,26 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+const listen = (channel) => (cb) => {
+  const handler = (_e, data) => cb(data);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
 
 contextBridge.exposeInMainWorld('stickyAPI', {
+  // Electron 32+ เอา File.path ออกแล้ว ต้องขอ path ผ่าน webUtils
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch (_) {
+      return '';
+    }
+  },
+  captureSubmit: (text) => ipcRenderer.invoke('capture-submit', text),
+  captureHide: () => ipcRenderer.invoke('capture-hide'),
+  openInbox: () => ipcRenderer.invoke('open-inbox'),
+  onCaptureShow: listen('capture-show'),
+  onInboxAppend: listen('inbox-append'),
+  onReminderReschedule: listen('reminder-reschedule'),
   getStore: () => ipcRenderer.invoke('get-store'),
   setMeta: (meta) => ipcRenderer.invoke('set-meta', meta),
   createNote: (opts) => ipcRenderer.invoke('create-note', opts),

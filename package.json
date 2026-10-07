@@ -1,6 +1,6 @@
 {
   "name": "wunwun",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "WunWun - Sticky Note To-Do. วันวันทำอะไรบ้าง? จดไว้ตรงนี้ ไม่มีลืม — lightweight floating desktop sticky with smart task tracking and local-first cloud sync.",
   "main": "main.js",
   "author": "You",
@@ -9,7 +9,8 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win",
-    "dist:portable": "electron-builder --win portable"
+    "dist:portable": "electron-builder --win portable",
+    "test": "node --test \"tests/*.test.js\""
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -33,6 +34,11 @@
       "note.css",
       "note.js",
       "snip.html",
+      "capture.html",
+      "capture.css",
+      "capture.js",
+      "when-parser.js",
+      "reminders.js",
       "assets/**/*"
     ],
     "win": {
@@ -40,13 +46,18 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
-      ]
+      ],
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": false,

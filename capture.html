@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <title>WunWun — จดด่วน</title>
+  <link rel="stylesheet" href="capture.css" />
+</head>
+<body>
+  <form id="capture-form" class="capture" autocomplete="off">
+    <div class="capture-row">
+      <img class="capture-logo" src="assets/tray.png" alt="" />
+      <input id="capture-input" type="text" spellcheck="false"
+             placeholder="คิดอะไรอยู่? เช่น ส่ง artwork ให้ลูกค้าวันศุกร์ 10 โมง" />
+      <kbd class="capture-enter">Enter ↵</kbd>
+    </div>
+    <div class="capture-hint" id="capture-hint">
+      <span class="chip" id="chip-kind">งาน</span>
+      <span class="chip chip-when hidden" id="chip-when"></span>
+      <span class="hint-text" id="hint-text">ลง Inbox · Esc ปิด · ขึ้นต้นด้วย ? = จดเป็นไอเดีย</span>
+    </div>
+  </form>
+  <script src="when-parser.js"></script>
+  <script src="capture.js"></script>
+</body>
+</html>

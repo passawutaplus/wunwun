@@ -9,30 +9,62 @@ const {
   protocol,
   net,
   nativeImage,
-  shell
+  shell,
+  Tray,
+  Menu,
+  globalShortcut
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { SyncService } = require('./sync-service');
+const When = require('./when-parser');
+const Reminders = require('./reminders');
 
 const STATE_PATH = path.join(app.getPath('userData'), 'window-state.json');
 const DATA_PATH = path.join(app.getPath('userData'), 'wunwun_data.json');
 const LEGACY_DATA_PATH = path.join(app.getPath('userData'), 'notes-data.json');
 const MEDIA_DIR = path.join(app.getPath('userData'), 'media');
+const BACKUP_DIR = path.join(app.getPath('userData'), 'backups');
+const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
+const TRAY_ICON_PATH = path.join(__dirname, 'assets', 'tray.png');
+const START_HIDDEN = process.argv.includes('--hidden');
+const REMINDER_TICK_MS = 20 * 1000;
+const MISSED_GRACE_MS = 12 * 60 * 60 * 1000; // เตือนที่พลาดเกิน 12 ชม. รวมเป็นแจ้งเตือนเดียว
 
 let hubWindow = null;
 const noteWindows = new Map();
 let snipWindow = null;
+let captureWindow = null;
+let tray = null;
+let isQuitting = false;
+const liveNotifications = new Set(); // กัน Notification ถูก GC จนคลิกแล้วไม่ทำงาน
 
-const DEFAULT_STORE = {
-  notes: [],
-  defaultColor: '#f1c40f',
-  activeTab: 'all',
-  selectedNoteId: null
-};
+const DEFAULT_HOTKEYS = { capture: 'Control+Alt+Space', toggleNotes: 'Control+Alt+W' };
 
-let store = { ...DEFAULT_STORE };
+function defaultStore() {
+  return {
+    notes: [],
+    defaultColor: '#f1c40f',
+    activeTab: 'all',
+    selectedNoteId: null,
+    inboxNoteId: null,
+    openNoteIds: [],
+    reminderFired: {},
+    settings: {
+      hotkeys: { ...DEFAULT_HOTKEYS },
+      autoStart: null, // null = ยังไม่ได้เลือก → เปิดให้อัตโนมัติเมื่อเป็นแอปที่ติดตั้งแล้ว
+      trayHintShown: false
+    }
+  };
+}
+
+let store = defaultStore();
+
+// เปิดได้ทีละตัว: เปิดซ้ำ = เรียก Hub ของตัวที่เปิดอยู่
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) app.quit();
+app.on('second-instance', () => showHub());
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,31 +74,131 @@ function ensureMediaDir() {
   if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
 }
 
-function loadStore() {
-  try {
-    const src = fs.existsSync(DATA_PATH)
-      ? DATA_PATH
-      : fs.existsSync(LEGACY_DATA_PATH)
-        ? LEGACY_DATA_PATH
-        : null;
-    if (src) {
-      const raw = JSON.parse(fs.readFileSync(src, 'utf8'));
-      store = {
-        ...DEFAULT_STORE,
-        ...raw,
-        notes: Array.isArray(raw.notes) ? raw.notes : []
-      };
-      if (src === LEGACY_DATA_PATH) saveStore();
-      return;
+function mergeStore(raw) {
+  const base = defaultStore();
+  const settings = raw.settings || {};
+  return {
+    ...base,
+    ...raw,
+    notes: Array.isArray(raw.notes) ? raw.notes : [],
+    openNoteIds: Array.isArray(raw.openNoteIds) ? raw.openNoteIds : [],
+    reminderFired: raw.reminderFired && typeof raw.reminderFired === 'object' ? raw.reminderFired : {},
+    settings: {
+      ...base.settings,
+      ...settings,
+      hotkeys: { ...DEFAULT_HOTKEYS, ...(settings.hotkeys || {}) }
     }
+  };
+}
+
+function latestBackup() {
+  try {
+    const files = fs
+      .readdirSync(BACKUP_DIR)
+      .filter((f) => /^wunwun_data-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .sort();
+    return files.length ? path.join(BACKUP_DIR, files[files.length - 1]) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+const PREV_DATA_PATH = `${DATA_PATH}.bak`; // ข้อมูลก่อนบันทึกครั้งล่าสุด
+
+function readStoreFile(file) {
+  return mergeStore(JSON.parse(fs.readFileSync(file, 'utf8')));
+}
+
+function loadStore() {
+  if (!fs.existsSync(DATA_PATH) && !fs.existsSync(PREV_DATA_PATH) && fs.existsSync(LEGACY_DATA_PATH)) {
+    try {
+      store = readStoreFile(LEGACY_DATA_PATH);
+      saveStore();
+      return;
+    } catch (_) {}
+  }
+  if (fs.existsSync(DATA_PATH)) {
+    try {
+      store = readStoreFile(DATA_PATH);
+      return;
+    } catch (_) {
+      // ไฟล์เสีย: อย่าเริ่มว่างแล้วเขียนทับ เก็บไฟล์เสียไว้ดูทีหลัง แล้วกู้จากสำรอง
+      try {
+        fs.renameSync(DATA_PATH, `${DATA_PATH}.corrupt-${Date.now()}`);
+      } catch (_) {}
+    }
+  } else if (!fs.existsSync(PREV_DATA_PATH) && !latestBackup()) {
+    store = defaultStore(); // ติดตั้งใหม่
+    return;
+  }
+  // กู้: บันทึกก่อนหน้า → สำรองรายวันล่าสุด
+  for (const candidate of [PREV_DATA_PATH, latestBackup()]) {
+    if (!candidate || !fs.existsSync(candidate)) continue;
+    try {
+      store = readStoreFile(candidate);
+      saveStore();
+      app.whenReady().then(() => notify('กู้ข้อมูลแล้ว', `ไฟล์ข้อมูลเสีย ใช้ข้อมูลสำรอง ${path.basename(candidate)}`));
+      return;
+    } catch (_) {}
+  }
+  store = defaultStore();
+  app.whenReady().then(() => notify('ไฟล์ข้อมูลเสีย', 'ไม่พบข้อมูลสำรองที่อ่านได้ ไฟล์เดิมเก็บไว้เป็น .corrupt'));
+}
+
+function writeFileAtomic(file, data) {
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, data);
+  try {
+    if (fs.existsSync(file)) fs.renameSync(file, `${file}.bak`);
+    fs.renameSync(tmp, file);
+  } catch (_) {
+    // OneDrive/แอนตี้ไวรัสล็อกไฟล์อยู่: เขียนตรงแทน
+    fs.writeFileSync(file, data);
+    try {
+      fs.unlinkSync(tmp);
+    } catch (_) {}
+  }
+}
+
+let lastBackupDay = null;
+function backupDaily(data) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (day === lastBackupDay) return;
+  lastBackupDay = day;
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const target = path.join(BACKUP_DIR, `wunwun_data-${day}.json`);
+    if (!fs.existsSync(target)) fs.writeFileSync(target, data);
+    const old = fs
+      .readdirSync(BACKUP_DIR)
+      .filter((f) => /^wunwun_data-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+      .sort()
+      .slice(0, -7);
+    old.forEach((f) => fs.unlinkSync(path.join(BACKUP_DIR, f)));
   } catch (_) {}
-  store = { ...DEFAULT_STORE, notes: [] };
 }
 
 function saveStore() {
   try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(store, null, 2));
+    const data = JSON.stringify(store, null, 2);
+    writeFileAtomic(DATA_PATH, data);
+    backupDaily(data);
   } catch (_) {}
+}
+
+function notify(title, body, onClick) {
+  if (!Notification.isSupported()) return null;
+  const n = new Notification({ title, body, icon: ICON_PATH, silent: false });
+  liveNotifications.add(n);
+  const drop = () => liveNotifications.delete(n);
+  n.on('click', () => {
+    drop();
+    if (onClick) onClick();
+  });
+  n.on('close', drop);
+  setTimeout(drop, 30 * 60 * 1000);
+  n.show();
+  return n;
 }
 
 function broadcastStore(exceptWebContentsId = null) {
@@ -170,6 +302,15 @@ function createHubWindow() {
   hubWindow.on('close', saveHubState);
   hubWindow.on('closed', () => {
     hubWindow = null;
+    if (!isQuitting && !store.settings.trayHintShown) {
+      store.settings.trayHintShown = true;
+      saveStore();
+      notify(
+        'WunWun ยังทำงานอยู่',
+        `อยู่ที่ไอคอนมุมขวาล่าง · กด ${hotkeyLabel(store.settings.hotkeys.capture)} เพื่อจดด่วน`,
+        showHub
+      );
+    }
   });
 }
 
@@ -272,10 +413,29 @@ function createNoteWindow(noteId) {
   win.on('close', persistBounds);
   win.on('closed', () => {
     noteWindows.delete(noteId);
+    // ปิดเอง = ไม่ต้องเปิดคืนตอนเริ่มแอป; ปิดเพราะออกจากแอป = เปิดคืน
+    if (!isQuitting) setNoteOpen(noteId, false);
   });
 
   noteWindows.set(noteId, win);
+  setNoteOpen(noteId, true);
   return win;
+}
+
+function setNoteOpen(noteId, open) {
+  const ids = new Set(store.openNoteIds || []);
+  const had = ids.has(noteId);
+  if (open) ids.add(noteId);
+  else ids.delete(noteId);
+  if (had === open) return;
+  store.openNoteIds = [...ids];
+  saveStore();
+}
+
+function restoreOpenNotes() {
+  const ids = (store.openNoteIds || []).filter((id) => getNote(id));
+  store.openNoteIds = ids;
+  ids.forEach((id) => createNoteWindow(id));
 }
 
 function createBlankNote(color) {
@@ -301,6 +461,300 @@ function createBlankNote(color) {
   saveStore();
   broadcastStore();
   return note;
+}
+
+// ---------- Hub / แสดงซ่อนโน้ต ----------
+
+function showHub() {
+  if (!gotSingleInstanceLock) return;
+  if (hubWindow && !hubWindow.isDestroyed()) {
+    if (hubWindow.isMinimized()) hubWindow.restore();
+    hubWindow.show();
+    hubWindow.focus();
+    return;
+  }
+  createHubWindow();
+}
+
+function openNoteFocused(noteId) {
+  const win = createNoteWindow(noteId);
+  if (win && !win.isDestroyed()) {
+    win.show();
+    win.focus();
+  }
+}
+
+function toggleNotes() {
+  const wins = [...noteWindows.values()].filter((w) => !w.isDestroyed());
+  if (wins.some((w) => w.isVisible())) {
+    wins.forEach((w) => w.hide());
+    return;
+  }
+  if (wins.length) wins.forEach((w) => w.showInactive());
+  else restoreOpenNotes();
+  if (!noteWindows.size) showHub();
+}
+
+// ---------- Inbox + จดด่วน ----------
+
+function ensureInbox() {
+  let inbox = store.inboxNoteId ? getNote(store.inboxNoteId) : null;
+  if (inbox) return inbox;
+  const now = new Date().toISOString();
+  inbox = {
+    id: uid(),
+    color: '#3498db',
+    title: 'Inbox · จดด่วน',
+    contentHtml: Reminders.INBOX_HEAD,
+    completedHtml: '',
+    kind: 'task',
+    isInbox: true,
+    reminderAt: null,
+    reminderFired: false,
+    alwaysOnTop: true,
+    collapsed: false,
+    expandedBounds: null,
+    windowBounds: null,
+    createdAt: now,
+    updatedAt: now
+  };
+  store.notes.unshift(inbox);
+  store.inboxNoteId = inbox.id;
+  saveStore();
+  broadcastStore();
+  return inbox;
+}
+
+function appendToInbox(html) {
+  const inbox = ensureInbox();
+  const win = noteWindows.get(inbox.id);
+  if (win && !win.isDestroyed() && !win.webContents.isLoading()) {
+    // โน้ตเปิดอยู่: ให้หน้าต่างแทรกเองแล้วบันทึก จะได้ไม่ทับสิ่งที่กำลังพิมพ์
+    win.webContents.send('inbox-append', html);
+    return inbox;
+  }
+  inbox.contentHtml = Reminders.insertAfterHead(inbox.contentHtml, html);
+  inbox.kind = detectKind(inbox.contentHtml + (inbox.completedHtml || ''));
+  inbox.updatedAt = new Date().toISOString();
+  upsertNote(inbox);
+  broadcastStore();
+  return inbox;
+}
+
+function processCapture(raw) {
+  const input = String(raw || '').trim().slice(0, 2000);
+  if (!input) return { ok: false };
+  const parsed = When.parseWhen(input);
+  const kind = When.classify(input, parsed);
+  const esc = Reminders.escapeHtml;
+  let html;
+  let label = null;
+  if (kind === 'link') {
+    const href = /^https?:\/\//i.test(input) ? input : `https://${input}`;
+    html = `<div class="capture-link"><a href="${esc(href)}" target="_blank">${esc(input)}</a></div>`;
+  } else if (kind === 'idea') {
+    html = `<div class="capture-idea">💡 ${esc(input.replace(/^[?~]\s*/, ''))}</div>`;
+  } else {
+    const text = (parsed.at ? parsed.text : input).replace(/^([-*•]|\[\s?\])\s*/, '');
+    label = parsed.at ? When.formatWhen(parsed.at, parsed.repeat) : null;
+    html = Reminders.buildItemHtml({
+      id: uid(),
+      text,
+      source: parsed.at ? input : null,
+      at: parsed.at,
+      repeat: parsed.repeat,
+      hasTime: parsed.hasTime,
+      label
+    });
+  }
+  appendToInbox(html);
+  return { ok: true, kind, label };
+}
+
+function createCaptureWindow() {
+  captureWindow = new BrowserWindow({
+    width: 560,
+    height: 108,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  captureWindow.setAlwaysOnTop(true, 'pop-up-menu');
+  captureWindow.loadFile('capture.html');
+  captureWindow.on('blur', hideCapture);
+  captureWindow.on('closed', () => {
+    captureWindow = null;
+  });
+}
+
+function showCapture() {
+  if (!captureWindow || captureWindow.isDestroyed()) createCaptureWindow();
+  const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const [w] = captureWindow.getSize();
+  captureWindow.setPosition(Math.round(wa.x + (wa.width - w) / 2), Math.round(wa.y + wa.height * 0.26));
+  const reveal = () => {
+    captureWindow.show();
+    captureWindow.focus();
+    captureWindow.webContents.send('capture-show');
+  };
+  if (captureWindow.webContents.isLoading()) captureWindow.webContents.once('did-finish-load', reveal);
+  else reveal();
+}
+
+function hideCapture() {
+  if (captureWindow && !captureWindow.isDestroyed() && captureWindow.isVisible()) captureWindow.hide();
+}
+
+// ---------- เตือนความจำ ----------
+
+function rescheduleRepeat(r, now) {
+  const next = When.nextOccurrence(r.at, r.repeat, now);
+  if (!next) return;
+  const atIso = next.toISOString();
+  const win = noteWindows.get(r.noteId);
+  if (win && !win.isDestroyed() && !win.webContents.isLoading()) {
+    win.webContents.send('reminder-reschedule', { itemId: r.id, at: atIso });
+    return;
+  }
+  const note = getNote(r.noteId);
+  if (!note) return;
+  note.contentHtml = Reminders.rescheduleInHtml(note.contentHtml, r.id, atIso, When.formatWhen(atIso, r.repeat));
+  note.updatedAt = new Date().toISOString();
+  upsertNote(note);
+  broadcastStore();
+}
+
+function pruneFired() {
+  const keys = Object.keys(store.reminderFired || {});
+  if (keys.length < 200) return;
+  const alive = new Set();
+  store.notes.forEach((n) => Reminders.extractReminderItems(n.contentHtml).forEach((i) => alive.add(i.id)));
+  keys.forEach((k) => {
+    if (!alive.has(k)) delete store.reminderFired[k];
+  });
+}
+
+function checkReminders() {
+  const now = new Date();
+  const due = Reminders.dueReminders(store.notes, store.reminderFired, now);
+  if (!due.length) return;
+  const fresh = [];
+  let missed = 0;
+  for (const r of due) {
+    store.reminderFired[r.id] = r.at;
+    if (now - new Date(r.at) > MISSED_GRACE_MS) missed++;
+    else fresh.push(r);
+    if (r.repeat) rescheduleRepeat(r, now);
+  }
+  pruneFired();
+  saveStore();
+
+  fresh.slice(0, 3).forEach((r) => {
+    const body = r.noteTitle && !r.noteTitle.startsWith(r.text) ? `${r.text}\n${r.noteTitle}` : r.text;
+    notify('WunWun · ถึงเวลาแล้ว', body || 'มีงานถึงเวลา', () => openNoteFocused(r.noteId));
+  });
+  const extra = Math.max(0, fresh.length - 3);
+  if (extra || missed) {
+    const parts = [];
+    if (extra) parts.push(`อีก ${extra} งานถึงเวลา`);
+    if (missed) parts.push(`พลาดการเตือน ${missed} งานระหว่างปิดเครื่อง`);
+    notify('WunWun', parts.join(' · '), showHub);
+  }
+}
+
+// ---------- Tray, คีย์ลัด, เปิดพร้อมเครื่อง ----------
+
+const hotkeyLabel = (acc) => (acc ? acc.replace(/Control/g, 'Ctrl').replace(/CommandOrControl/g, 'Ctrl') : '');
+
+function buildTrayMenu() {
+  const hk = store.settings.hotkeys;
+  return Menu.buildFromTemplate([
+    { label: `จดด่วน\t${hotkeyLabel(hk.capture)}`, click: showCapture },
+    { label: 'เปิด Inbox', click: () => openNoteFocused(ensureInbox().id) },
+    { label: 'เปิด Hub', click: showHub },
+    { label: `แสดง/ซ่อนโน้ต\t${hotkeyLabel(hk.toggleNotes)}`, click: toggleNotes },
+    { type: 'separator' },
+    {
+      label: 'เปิดพร้อมเครื่อง',
+      type: 'checkbox',
+      checked: !!store.settings.autoStart,
+      enabled: app.isPackaged,
+      click: (item) => setAutoStart(item.checked)
+    },
+    { type: 'separator' },
+    {
+      label: 'ออกจาก WunWun',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+}
+
+function createTray() {
+  const img = nativeImage.createFromPath(TRAY_ICON_PATH);
+  tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
+  tray.setToolTip('WunWun — วันวันทำอะไรบ้าง?');
+  tray.setContextMenu(buildTrayMenu());
+  tray.on('click', showHub);
+}
+
+function refreshTrayMenu() {
+  if (tray && !tray.isDestroyed()) tray.setContextMenu(buildTrayMenu());
+}
+
+function applyAutoStart() {
+  // ตอน dev (npm start) จะลงทะเบียน electron.exe เปล่า ๆ ซึ่งเปิดแอปไม่ได้ จึงทำเฉพาะแอปที่ build แล้ว
+  if (!app.isPackaged || process.platform === 'linux') return;
+  const opts = { openAtLogin: !!store.settings.autoStart, args: ['--hidden'] };
+  // portable exe แตกไฟล์ไปโฟลเดอร์ชั่วคราว ต้องชี้ไปที่ exe ตัวจริง
+  if (process.env.PORTABLE_EXECUTABLE_FILE) opts.path = process.env.PORTABLE_EXECUTABLE_FILE;
+  try {
+    app.setLoginItemSettings(opts);
+  } catch (_) {}
+}
+
+function setAutoStart(on) {
+  store.settings.autoStart = !!on;
+  saveStore();
+  applyAutoStart();
+  refreshTrayMenu();
+}
+
+function registerHotkeys() {
+  globalShortcut.unregisterAll();
+  const hk = store.settings.hotkeys;
+  const failed = [];
+  const bind = (acc, fn) => {
+    if (!acc) return;
+    try {
+      if (!globalShortcut.register(acc, fn)) failed.push(acc);
+    } catch (_) {
+      failed.push(acc);
+    }
+  };
+  bind(hk.capture, showCapture);
+  bind(hk.toggleNotes, toggleNotes);
+  if (failed.length) {
+    notify(
+      'คีย์ลัดใช้ไม่ได้',
+      `${failed.map(hotkeyLabel).join(', ')} ถูกแอปอื่นใช้อยู่ · ยังจดด่วนได้จากไอคอน WunWun ใน tray`
+    );
+  }
 }
 
 function copyMediaIntoLibrary(srcPath) {
@@ -485,9 +939,39 @@ protocol.registerSchemesAsPrivileged([
   }
 ]);
 
+// ลิงก์ในโน้ตเปิดในเบราว์เซอร์; ลากไฟล์มาวางผิดที่จะไม่พาหน้าต่างออกจากแอป
+app.on('web-contents-created', (_e, contents) => {
+  if (contents.getType() !== 'window') return;
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+});
+
+// Windows ปิดเครื่อง/ล็อกเอาต์ไม่ส่ง before-quit: ถือว่ากำลังออก จะได้จำโน้ตที่เปิดค้างไว้
+app.on('browser-window-created', (_e, win) => {
+  win.on('session-end', () => {
+    isQuitting = true;
+  });
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
+app.on('will-quit', () => {
+  if (app.isReady()) globalShortcut.unregisterAll();
+});
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.microasana.sticky');
+    // ต้องตรงกับ build.appId ใน package.json ไม่งั้นการแจ้งเตือนของแอปที่ติดตั้งอาจไม่ขึ้น
+    app.setAppUserModelId('com.wunwun.app');
   }
   ensureMediaDir();
 
@@ -511,16 +995,28 @@ app.whenReady().then(() => {
   SyncService.loginAsGuest();
 
   loadStore();
-  createHubWindow();
+  if (store.settings.autoStart === null) {
+    store.settings.autoStart = app.isPackaged;
+    saveStore();
+  }
+  applyAutoStart();
+
+  createTray();
+  registerHotkeys();
+  createCaptureWindow();
+  if (!START_HIDDEN) createHubWindow();
+  restoreOpenNotes();
+
+  setTimeout(checkReminders, 3000);
+  setInterval(checkReminders, REMINDER_TICK_MS);
 
   app.on('activate', () => {
     if (!hubWindow) createHubWindow();
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+// ปิดทุกหน้าต่างแล้วยังอยู่ใน tray เพื่อให้คีย์ลัดและการเตือนทำงานต่อ ออกจริงจากเมนู tray
+app.on('window-all-closed', () => {});
 
 ipcMain.handle('get-store', () => store);
 
@@ -567,6 +1063,8 @@ ipcMain.handle('save-note', (_e, patch) => {
 ipcMain.handle('delete-note', (_e, id) => {
   store.notes = store.notes.filter((n) => n.id !== id);
   if (store.selectedNoteId === id) store.selectedNoteId = null;
+  if (store.inboxNoteId === id) store.inboxNoteId = null; // จดด่วนครั้งหน้าจะสร้าง Inbox ใหม่
+  store.openNoteIds = (store.openNoteIds || []).filter((x) => x !== id);
   saveStore();
   const win = noteWindows.get(id);
   if (win && !win.isDestroyed()) win.close();
@@ -888,11 +1386,15 @@ ipcMain.handle('ai-assist', async (_e, { action, text }) => {
 });
 
 ipcMain.handle('show-notification', (_e, { title, body }) => {
-  if (!Notification.isSupported()) return false;
-  new Notification({
-    title: title || 'Micro-Asana Sticky',
-    body: body || 'Reminder',
-    silent: false
-  }).show();
-  return true;
+  return !!notify(title || 'WunWun', body || '');
 });
+
+ipcMain.handle('capture-submit', (_e, text) => {
+  const result = processCapture(text);
+  if (result.ok) hideCapture();
+  return result;
+});
+
+ipcMain.handle('capture-hide', () => hideCapture());
+
+ipcMain.handle('open-inbox', () => openNoteFocused(ensureInbox().id));
