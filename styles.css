@@ -348,3 +348,7 @@ html, body {
   cursor: pointer;
 }
 .settings-btn.danger-text { color: var(--danger); }
+
+.hub-buttons { display: flex; gap: 8px; }
+.hub-buttons .primary-btn { flex: 1; }
+.hub-buttons .settings-btn { width: auto; flex: 0 0 84px; border-radius: 10px; font-weight: 700; font-size: 13px; }

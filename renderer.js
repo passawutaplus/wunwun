@@ -11,6 +11,7 @@
     notesList: document.getElementById('notes-list'),
     searchInput: document.getElementById('search-input'),
     btnNew: document.getElementById('btn-new-note'),
+    btnInbox: document.getElementById('btn-inbox'),
     btnPin: document.getElementById('btn-pin'),
     btnClose: document.getElementById('btn-close'),
     btnColor: document.getElementById('btn-color'),
@@ -223,6 +224,8 @@
   els.btnNew.addEventListener('click', async () => {
     await window.stickyAPI.createNote({ color: state.defaultColor });
   });
+
+  els.btnInbox.addEventListener('click', () => window.stickyAPI.openInbox());
 
   els.btnPin.addEventListener('click', async () => {
     const pinned = await window.stickyAPI.toggleAlwaysOnTop();

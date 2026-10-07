@@ -37,6 +37,7 @@
     btnAiClose: document.getElementById('btn-ai-close'),
     btnAiApply: document.getElementById('btn-ai-apply'),
     dockTitle: document.getElementById('dock-title'),
+    dockCount: document.getElementById('dock-count'),
     completedWrap: document.getElementById('completed-wrap'),
     completedToggle: document.getElementById('completed-toggle'),
     completedList: document.getElementById('completed-list'),
@@ -78,8 +79,92 @@
     });
   }
 
+  const When = window.WunWhen;
+  const itemUid = () => `i-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
   function updateDockTitle() {
     els.dockTitle.textContent = note?.title || 'Note';
+    if (!els.dockCount) return;
+    const open = els.editor.querySelectorAll('.check-item[data-checked="false"]').length;
+    const overdue = els.editor.querySelectorAll('.check-item[data-checked="false"] .when-chip.overdue').length;
+    els.dockCount.textContent = open ? String(open) : '';
+    els.dockCount.title = overdue ? `ค้าง ${open} งาน · เลยกำหนด ${overdue}` : `ค้าง ${open} งาน`;
+    els.dockCount.classList.toggle('overdue', overdue > 0);
+  }
+
+  // ---------- เวลาเตือนบน checklist item ----------
+
+  function ensureChip(item) {
+    let chip = item.querySelector('.when-chip');
+    if (!chip) {
+      chip = document.createElement('span');
+      chip.className = 'when-chip';
+      chip.contentEditable = 'false';
+      item.appendChild(chip);
+    }
+    if (!chip.dataset.wired) {
+      chip.dataset.wired = '1';
+      chip.title = 'คลิกเพื่อลบการเตือน';
+      chip.addEventListener('mousedown', (e) => e.preventDefault());
+      chip.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const restore = item.dataset.whenSource ? ' แล้วคืนข้อความเดิม' : '';
+        if (!confirm(`ลบการเตือน "${chip.textContent}"${restore}?`)) return;
+        clearReminder(item);
+      });
+    }
+    return chip;
+  }
+
+  function clearReminder(item) {
+    // เดาวันเวลาผิด (เช่น "บ้านเลขที่ 12/10") → คืนข้อความที่พิมพ์ไว้
+    const textEl = item.querySelector('.check-text');
+    if (item.dataset.whenSource && textEl) textEl.textContent = item.dataset.whenSource;
+    delete item.dataset.whenSource;
+    delete item.dataset.remindAt;
+    delete item.dataset.repeat;
+    delete item.dataset.hasTime;
+    item.querySelector('.when-chip')?.remove();
+    updateDockTitle();
+    scheduleSave();
+  }
+
+  function setReminder(item, { at, repeat, hasTime }) {
+    if (!item.dataset.id) item.dataset.id = itemUid();
+    item.dataset.remindAt = at;
+    item.dataset.hasTime = hasTime ? 'true' : 'false';
+    if (repeat) item.dataset.repeat = repeat;
+    else delete item.dataset.repeat;
+    ensureChip(item);
+    refreshChip(item);
+  }
+
+  function refreshChip(item) {
+    const chip = item.querySelector('.when-chip');
+    if (!chip || !item.dataset.remindAt) return;
+    chip.textContent = When.formatWhen(item.dataset.remindAt, item.dataset.repeat || null);
+    const late = item.dataset.checked !== 'true' && new Date(item.dataset.remindAt) < new Date();
+    chip.classList.toggle('overdue', late);
+  }
+
+  function refreshChips() {
+    document.querySelectorAll('.check-item[data-remind-at]').forEach(refreshChip);
+    updateDockTitle();
+  }
+
+  // พิมพ์ "พรุ่งนี้ 9 โมง" ท้ายงานแล้วกด Enter → ตั้งเตือนและตัดคำบอกเวลาออก
+  function applyWhenToItem(item) {
+    const textEl = item?.querySelector('.check-text');
+    if (!textEl) return false;
+    const original = textEl.innerText;
+    const parsed = When.parseWhen(original);
+    if (!parsed.at || !parsed.text) return false;
+    item.dataset.whenSource = original.trim();
+    textEl.textContent = parsed.text;
+    setReminder(item, parsed);
+    scheduleSave();
+    return true;
   }
 
   function setCollapsedUI(collapsed) {
@@ -104,6 +189,7 @@
   function buildCheckItem({ text = '', depth = 0, priority = 'medium', starred = false } = {}) {
     const item = document.createElement('div');
     item.className = 'check-item';
+    item.dataset.id = itemUid();
     item.dataset.checked = 'false';
     item.dataset.depth = String(depth);
     item.dataset.priority = priority;
@@ -154,6 +240,7 @@
       item.insertBefore(dot, star ? star.nextSibling : item.firstChild);
     }
     if (!item.dataset.priority) item.dataset.priority = 'medium';
+    if (item.dataset.remindAt) ensureChip(item);
 
     const cb = item.querySelector('input[type="checkbox"]');
     const starBtn = item.querySelector('.star-btn');
@@ -218,6 +305,21 @@
   function onCheckToggle(item, checked) {
     item.dataset.checked = checked ? 'true' : 'false';
     item.classList.toggle('done', checked);
+
+    // งานซ้ำที่ตั้งเวลา: ติ๊กแล้วเลื่อนไปรอบถัดไป ไม่ย้ายลง Completed
+    if (checked && item.dataset.repeat && item.dataset.remindAt) {
+      const next = When.nextOccurrence(item.dataset.remindAt, item.dataset.repeat, new Date());
+      setTimeout(() => {
+        const cb = item.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = false;
+        item.dataset.checked = 'false';
+        item.classList.remove('done');
+        if (next) setReminder(item, { at: next.toISOString(), repeat: item.dataset.repeat, hasTime: item.dataset.hasTime === 'true' });
+        updateDockTitle();
+        scheduleSave();
+      }, 600);
+      return;
+    }
 
     // Recurring: if text has @every-..., uncheck and keep (reset)
     const text = item.querySelector('.check-text')?.innerText || '';
@@ -288,9 +390,11 @@
     }
   }
 
-  function insertChecklistItem(text = '', depth = 0) {
+  function insertChecklistItem(text = '', depth = 0, afterItem = null) {
     const item = buildCheckItem({ text, depth, priority: defaultPriority });
-    insertAtCaret(item);
+    // กด Enter ในงานเดิม: วางงานใหม่ต่อท้ายงานนั้น ไม่ใช่ซ้อนเข้าไปในข้อความของมัน
+    if (afterItem && afterItem.parentNode) afterItem.after(item);
+    else insertAtCaret(item);
     const span = item.querySelector('.check-text');
     const sel = window.getSelection();
     const range = document.createRange();
@@ -369,8 +473,25 @@
     wireAll(els.completedList);
     syncCompletedUI();
     markEmpty();
-    updateDockTitle();
+    refreshChips();
     applying = false;
+  }
+
+  // จดด่วนเข้ามาตอนโน้ต Inbox เปิดอยู่
+  function appendCaptured(html) {
+    const anchor = els.editor.querySelector('.inbox-tip') || els.editor.querySelector('.inbox-head');
+    if (anchor) anchor.insertAdjacentHTML('afterend', html);
+    else els.editor.insertAdjacentHTML('afterbegin', html);
+    wireAll(els.editor);
+    refreshChips();
+    markEmpty();
+    const added = anchor ? anchor.nextElementSibling : els.editor.firstElementChild;
+    added?.classList.add('just-added');
+    setTimeout(() => {
+      added?.classList.remove('just-added');
+      scheduleSave();
+    }, 1200);
+    scheduleSave();
   }
 
   async function load() {
@@ -403,9 +524,19 @@
       if (!checklistMode && !item) return;
       if (checklistMode || item) {
         e.preventDefault();
+        if (item) applyWhenToItem(item);
         const depth = item ? Number(item.dataset.depth || 0) : 0;
-        insertChecklistItem('', depth);
+        insertChecklistItem('', depth, item);
       }
+    }
+  });
+
+  // Ctrl+คลิกลิงก์ = เปิดในเบราว์เซอร์ (คลิกธรรมดายังแก้ข้อความได้)
+  els.editor.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href^="http"]');
+    if (a && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      window.open(a.href, '_blank');
     }
   });
 
@@ -432,7 +563,9 @@
     if (files.length || uri) e.preventDefault();
 
     for (const file of files) {
-      const result = await window.stickyAPI.importDroppedFile(file.path, file.type);
+      const filePath = window.stickyAPI.getPathForFile(file);
+      if (!filePath) continue;
+      const result = await window.stickyAPI.importDroppedFile(filePath, file.type);
       if (!result) continue;
       if (result.kind === 'folder' || result.kind === 'file') {
         insertFolderLink(result.path);
@@ -622,6 +755,17 @@
   });
 
   window.stickyAPI.onCollapseState(setCollapsedUI);
+
+  window.stickyAPI.onInboxAppend(appendCaptured);
+
+  window.stickyAPI.onReminderReschedule(({ itemId, at }) => {
+    const item = [...document.querySelectorAll('.check-item')].find((el) => el.dataset.id === itemId);
+    if (!item) return;
+    setReminder(item, { at, repeat: item.dataset.repeat, hasTime: item.dataset.hasTime === 'true' });
+    scheduleSave();
+  });
+
+  setInterval(refreshChips, 60 * 1000);
 
   load();
 })();

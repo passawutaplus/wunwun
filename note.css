@@ -330,3 +330,71 @@ body.collapsed .note-app { background: var(--note-color); }
   background: #444;
   border-radius: 8px;
 }
+
+/* ---------- Sprint 1: เวลาเตือน, Inbox, dock ---------- */
+
+.editor .check-item .when-chip,
+.completed-list .check-item .when-chip {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--note-color);
+  cursor: pointer;
+  user-select: none;
+}
+.editor .check-item .when-chip.overdue {
+  background: rgba(231, 76, 60, 0.22);
+  color: #ff8a7a;
+}
+.check-item.done .when-chip { opacity: 0.5; }
+
+.editor .inbox-head {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--note-color);
+  margin-bottom: 2px;
+}
+.editor .inbox-tip {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.editor .capture-idea,
+.editor .capture-link {
+  margin: 4px 0;
+  padding: 4px 8px;
+  border-left: 2px solid var(--note-color);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 6px 6px 0;
+}
+.editor .capture-link a { color: var(--note-color); word-break: break-all; }
+.editor a[href^="http"] { cursor: text; }
+.editor a[href^="http"]:hover { text-decoration: underline; }
+
+.editor .just-added { animation: wun-added 1.2s ease-out; }
+@keyframes wun-added {
+  from { background: rgba(241, 196, 15, 0.25); }
+  to { background: transparent; }
+}
+
+.dock-count {
+  display: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+.dock-count:empty { display: none !important; }
+.dock-count.overdue { background: #e74c3c; color: #fff; }
+body.collapsed .dock-count { display: inline-block; }
